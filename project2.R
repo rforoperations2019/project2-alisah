@@ -13,14 +13,8 @@ library(jsonlite)
 library(sp)
 library(data.table)
 
-# Loading in the data
-url <- 'https://data.cityofnewyork.us/resource/uip8-fykc.csv'
-url_week <- URLencode(paste0(url, '?$where=arrest_date%20between%20%27',input$start,'T12:00:00%27%20and%20%27',input$end,'T14:00:00%27'))
 
-
-#All datasets brought to you by NYCOpenData ---------------------------------------------
-
-arrests <- read.socrata(url, app_token = Sys.getenv('token'))
+# Geographical datasets brought to you by NYC OpenData ------------------------------------
 
 #neighborhood tabulation areas
 n_tabs <- readOGR("Neighborhood Tabulation Areas.geojson")
@@ -35,7 +29,10 @@ sidebar <- dashboardSidebar(
     id = "tabs",
     
     menuItem("Raw Data", icon = icon("table"), tabName = "table"),
-    
+    dateRangeInput("dates",
+                   "Select Dates",
+                   start = '2019-01-01',
+                   end = '2019-06-30'),
     
   selectInput("boro",
               "Borough",
@@ -57,9 +54,24 @@ ui <- dashboardPage(header, sidebar, body, skin = "green")
 
 server <- function(input,output){
   
+  # Creating the API with data filters--------------------------------------------------
+  url <- 'https://data.cityofnewyork.us/resource/uip8-fykc.csv'
+  
+  arrests_url <- reactive({
+    paste0(url, "?$where=arrest_date%20between%20%27",
+                   input$dates[1],"T12:00:00%27%20and%20%27",
+                   input$dates[2],"T14:00:00%27")
+  })
+    # Loading the data filtered by date---------------------------------------------
+  
+    arrest_data <- reactive({
+      read.socrata(arrests_url(), app_token = Sys.getenv('token'))
+    
+  })
+  
   # Creating a subset based on boroughs ----------------------------------------
   data_sub <- reactive({
-    subset(arrests, arrest_boro==input$boro)
+    subset(arrest_data(), arrest_boro==input$boro)
   })
   
   # Creating a data table based on subset
