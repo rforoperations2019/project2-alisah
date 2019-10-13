@@ -15,6 +15,7 @@ library(data.table)
 
 # Loading in the data
 url <- 'https://data.cityofnewyork.us/resource/uip8-fykc.csv'
+url_week <- URLencode(paste0(url, '?$where=arrest_date%20between%20%27',input$start,'T12:00:00%27%20and%20%27',input$end,'T14:00:00%27'))
 
 
 #All datasets brought to you by NYCOpenData ---------------------------------------------
