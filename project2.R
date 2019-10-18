@@ -32,6 +32,7 @@ sidebar <- dashboardSidebar(
     id = "tabs",
     menuItem("The Map", icon = icon("map"), tabName = "mep"),
     menuItem("Raw Data", icon = icon("table"), tabName = "table"),
+    menuItem("Charts and Graphs", icon = icon("chart"), tabName = "charts"),
     
     dateRangeInput("dates",
                    "Select Dates",
@@ -58,7 +59,11 @@ body <- dashboardBody(tabItems(
                                                                     height = 500)))),
   tabItem("table",
           fluidPage(box(title = h3("The Data"), DT::dataTableOutput("table")))
-          )
+          ),
+  tabItem("charts",
+          fluidPage(
+            fluidRow(plotOutput("balloon"))
+          ))
 
 ))
 # Putting everything together
@@ -151,16 +156,21 @@ server <- function(input,output){
       hideGroup("arrests")
   })
   
-  # output$map <- renderPlotly({
-  #   x <- ggplot(data_sub())
-  #   
-  # })
+   output$balloon <- renderPlot({
+     
+    #ggplotly(
+      ggplot(data_sub(), aes(x = age_group, y = perp_race)) +
+               geom_point(stat = "sum") + 
+      theme(panel.background=element_blank(),
+            panel.border =element_rect(color = "blue",
+                                       fill=NA, size=2)) +
+      ggtitle("Matching Perpetrator Race and Age Group") +
+      xlab("Age Groups") +
+      ylab("Perpetrator Race")
+     #)
   
-  
-
-
-#point.in.polygon
-}
+  })
+}   
 
 # Running the application
 shinyApp(ui, server)
