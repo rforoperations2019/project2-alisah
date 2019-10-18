@@ -30,9 +30,9 @@ sidebar <- dashboardSidebar(
   #A very nice menu of the different tabs ------------------------------------
   sidebarMenu(
     id = "tabs",
-    
-    menuItem("Raw Data", icon = icon("table"), tabName = "table"),
     menuItem("The Map", icon = icon("map"), tabName = "mep"),
+    menuItem("Raw Data", icon = icon("table"), tabName = "table"),
+    
     dateRangeInput("dates",
                    "Select Dates",
                    start = '2019-06-01',
@@ -52,13 +52,14 @@ sidebar <- dashboardSidebar(
 
 
 body <- dashboardBody(tabItems(
-  tabItem("table",
-          fluidPage(box(title = h3("The Data"), DT::dataTableOutput("table")))
-          ),
   tabItem("mep",
           fluidPage(box(title = h3("Map of Arrests"), leafletOutput("map", 
                                                                     width = "200%",
-                                                                    height = 500))))
+                                                                    height = 500)))),
+  tabItem("table",
+          fluidPage(box(title = h3("The Data"), DT::dataTableOutput("table")))
+          )
+
 ))
 # Putting everything together
 ui <- dashboardPage(header, sidebar, body, skin = "green")
@@ -82,8 +83,9 @@ server <- function(input,output){
   
   # Creating a subset based on boroughs ----------------------------------------
   data_sub <- reactive({
+    arrests <- arrest_data()
     req(input$boro)
-    subset(arrest_data(), arrest_boro==input$boro)
+    subset(arrests, arrest_boro==input$boro)
     
   })
   
@@ -94,12 +96,12 @@ server <- function(input,output){
   })
   
   # Creating the base map in Leaflet ----------------------------------------
-  output$map <- renderLeaflet(
+  output$map <- renderLeaflet({
 
   leaflet() %>%
     setView(lat = 40.78, lng = -73.95, zoom = 11.3) %>%
     addProviderTiles(providers$Stamen.TonerBackground) 
-  )
+  })
   
   # Adding arrests by neighorhood tabulation area in Leaflet ---------------------------
   observe({
@@ -131,17 +133,22 @@ server <- function(input,output){
   
   # Mapping arrest counts by NTA ----------------------------------------------------
     bin <- nrow(data_sub)/195
-    bins <- c(0, bin/3, bin/2, bin, bin*2, bin*3, Inf)
+    bins <- c(0, bin, bin*2, bin*3, bin*4, bin*5, Inf)
     pal <- colorBin("OrRd", domain = merge_things2$counts, bins = bins)
   
     leafletProxy("map") %>%
       clearShapes() %>%
       addPolygons(data = merge_things2, color = '#7d2218', fillColor = ~pal(counts), 
-                 fillOpacity = 1, weight = 2) %>%
+                 fillOpacity = 1, weight = 2, group = "NTA") %>%
+      addMarkers(lng = data_sub$longitude, lat = data_sub$latitude,
+                 group = "arrests", clusterOptions = markerClusterOptions()) %>%
       clearControls() %>%
       addLegend(pal = pal, values = merge_things2$counts,
               opacity = 1.0, title = 'Arrest Totals',
-              position = "bottomleft")
+              position = "bottomleft") %>%
+      addLayersControl(overlayGroups = c("NTA", "arrests"),
+                       options = layersControlOptions(collapsed = FALSE)) %>%
+      hideGroup("arrests")
   })
   
   # output$map <- renderPlotly({
