@@ -100,7 +100,7 @@ server <- function(input,output){
 
   leaflet() %>%
     setView(lat = 40.78, lng = -73.95, zoom = 11.3) %>%
-    addProviderTiles(providers$Stamen.TonerBackground) 
+    addProviderTiles(providers$Esri.WorldStreetMap) 
   })
   
   # Adding arrests by neighorhood tabulation area in Leaflet ---------------------------
