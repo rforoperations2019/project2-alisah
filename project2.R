@@ -17,9 +17,13 @@ library(plotly)
 
 #neighborhood tabulation areas
 n_tabs <- readOGR("Neighborhood Tabulation Areas.geojson")
+nta_df <- data.frame(n_tabs$ntacode)
+
+# for testing
+arrests <- read.csv('uip8-fykc.csv')
 
 header <- dashboardHeader(title = "NYPD Arrests for 2019",
-                          titleWidth = 400)
+                          titleWidth = 300)
 
 sidebar <- dashboardSidebar(
   
@@ -41,6 +45,7 @@ sidebar <- dashboardSidebar(
                 "Bronx" = "B",
                 "Staten Island" = "S",
                 "Manhattan" = "M"),
+              selected = "M",
               options = list(`actions-box` = TRUE),
               multiple = T)
 ))
@@ -51,7 +56,9 @@ body <- dashboardBody(tabItems(
           fluidPage(box(title = h3("The Data"), DT::dataTableOutput("table")))
           ),
   tabItem("mep",
-          fluidPage(box(title = h3("Map of Arrests"), leafletOutput("map"))))
+          fluidPage(box(title = h3("Map of Arrests"), leafletOutput("map", 
+                                                                    width = "200%",
+                                                                    height = 500))))
 ))
 # Putting everything together
 ui <- dashboardPage(header, sidebar, body, skin = "green")
@@ -75,27 +82,66 @@ server <- function(input,output){
   
   # Creating a subset based on boroughs ----------------------------------------
   data_sub <- reactive({
+    req(input$boro)
     subset(arrest_data(), arrest_boro==input$boro)
+    
   })
   
-  # Creating a data table based on subset
+  # Creating a data table based on subset -----------------------------------
   
   output$table <- DT::renderDataTable({
     data.table(data_sub())
   })
   
-  output$map <- renderLeaflet({
-  base <-leaflet() %>%
-    setView(lat = 40.75, lng = -74, zoom = 11.3)
+  # Creating the base map in Leaflet ----------------------------------------
+  output$map <- renderLeaflet(
 
-  base <- base %>%
-    addProviderTiles(providers$Stamen.TonerBackground)
-
-
-  leaflet(data = n_tabs) %>%
-    setView(lat = 40.75, lng = -73.9, zoom = 11.3) %>%
+  leaflet() %>%
+    setView(lat = 40.78, lng = -73.95, zoom = 11.3) %>%
     addProviderTiles(providers$Stamen.TonerBackground) 
-    #%>% addPolygons(color = '#2ca25f', weight = 2)
+  )
+  
+  # Adding arrests by neighorhood tabulation area in Leaflet ---------------------------
+  observe({
+    data_sub <- data_sub()
+  
+  # Making x,y coordinates from arrests into spatial points ---------------- 
+    xy <- data_sub[,c("longitude", "latitude")]
+  
+    spdf <- SpatialPointsDataFrame(coords = xy, data = data_sub,
+                                 proj4string = CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"))
+  
+  # Assigning arrests to neighborhood tabulation areas based on location --------------
+    idk <- over(n_tabs, spdf, returnList = TRUE)
+  
+    idk_new <- list()
+    for (i in 1:195) {
+      idk_new[i] <- nrow(idk[[i]])
+  }
+  
+  # counting the number of arrests in each NTA -----------------------------------
+    arrests_nta <- data.frame(matrix(unlist(idk_new), nrow=length(idk_new), byrow=T))
+    names(arrests_nta) <- c("counts")
+    row.names(arrests_nta) <- n_tabs$ntacode
+  
+  # Combining the arrest counts with the spatial dataset for NTAs ----------------
+    merge_things2 <- merge(x = n_tabs, y = arrests_nta, 
+                         by.x = "ntacode", by.y = 0)
+  
+  
+  # Mapping arrest counts by NTA ----------------------------------------------------
+    bin <- nrow(data_sub)/195
+    bins <- c(0, bin/3, bin/2, bin, bin*2, bin*3, Inf)
+    pal <- colorBin("OrRd", domain = merge_things2$counts, bins = bins)
+  
+    leafletProxy("map") %>%
+      clearShapes() %>%
+      addPolygons(data = merge_things2, color = '#7d2218', fillColor = ~pal(counts), 
+                 fillOpacity = 1, weight = 2) %>%
+      clearControls() %>%
+      addLegend(pal = pal, values = merge_things2$counts,
+              opacity = 1.0, title = 'Arrest Totals',
+              position = "bottomleft")
   })
   
   # output$map <- renderPlotly({
