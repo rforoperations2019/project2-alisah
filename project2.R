@@ -19,8 +19,7 @@ library(plotly)
 n_tabs <- readOGR("Neighborhood Tabulation Areas.geojson")
 nta_df <- data.frame(n_tabs$ntacode)
 
-# for testing
-arrests <- read.csv('uip8-fykc.csv')
+
 
 header <- dashboardHeader(title = "NYPD Arrests for 2019",
                           titleWidth = 300)
@@ -32,7 +31,7 @@ sidebar <- dashboardSidebar(
     id = "tabs",
     menuItem("The Map", icon = icon("map"), tabName = "mep"),
     menuItem("Raw Data", icon = icon("table"), tabName = "table"),
-    menuItem("Charts and Graphs", icon = icon("chart"), tabName = "charts"),
+    menuItem("Charts and Graphs", icon = icon("chart-bar"), tabName = "charts"),
     
     dateRangeInput("dates",
                    "Select Dates",
@@ -48,7 +47,15 @@ sidebar <- dashboardSidebar(
                 "Manhattan" = "M"),
               selected = "M",
               options = list(`actions-box` = TRUE),
-              multiple = T)
+              multiple = T),
+  radioButtons("offense",
+               "Type of Offense",
+               choices = c("Drugs" = "DANGEROUS DRUGS",
+                           "Assault" = "ASSAULT 3 & RELATED OFFENSES",
+                            "Larceny" = "PETIT LARCENY",
+                           "Traffic Violations" = "VEHICLE AND TRAFFIC LAWS",
+                           "Weapons Charge" = "DANGEROUS WEAPONS",
+                           "Robbery" = "ROBBERY"))
 ))
 
 
@@ -62,7 +69,8 @@ body <- dashboardBody(tabItems(
           ),
   tabItem("charts",
           fluidPage(
-            fluidRow(plotOutput("balloon"))
+            fluidRow(plotlyOutput("balloon")),
+            fluidRow(plotlyOutput("graph"))
           ))
 
 ))
@@ -90,7 +98,9 @@ server <- function(input,output){
   data_sub <- reactive({
     arrests <- arrest_data()
     req(input$boro)
-    subset(arrests, arrest_boro==input$boro)
+    req(input$offense)
+    d <- subset(arrests, arrest_boro==input$boro)
+    subset(d, ofns_desc == input$offense)
     
   })
   
@@ -156,20 +166,37 @@ server <- function(input,output){
       hideGroup("arrests")
   })
   
-   output$balloon <- renderPlot({
+   output$balloon <- renderPlotly({
      
-    #ggplotly(
-      ggplot(data_sub(), aes(x = age_group, y = perp_race)) +
-               geom_point(stat = "sum") + 
-      theme(panel.background=element_blank(),
-            panel.border =element_rect(color = "blue",
-                                       fill=NA, size=2)) +
-      ggtitle("Matching Perpetrator Race and Age Group") +
-      xlab("Age Groups") +
-      ylab("Perpetrator Race")
-     #)
+    
+      # ggplotly(ggplot(data_sub(), aes(x = age_group, y = perp_race)) +
+      #          geom_point(stat = "sum") +
+      # theme(panel.background=element_blank(),
+      #       panel.border =element_rect(color = "blue",
+      #                                  fill=NA, size=2)) +
+      # ggtitle("Matching Perpetrator Race and Age Group") +
+      # xlab("Age Groups") +
+      # ylab("Perpetrator Race")
+      # )
+     
+     plot_ly(
+               x = data_sub()$age_group, y = data_sub()$perp_race, type = 'scatter',
+               mode = 'markers')
+   })
+   
+     output$graph <- renderPlotly({
+       ofns <- data_sub()
+       df <- dplyr::count(ofns, arrest_date)
+       plot_ly(x = df$arrest_date, y = df$n,
+               type = 'scatter',
+               mode = 'lines') 
+                         
+     })
+
+
+     
   
-  })
+
 }   
 
 # Running the application
