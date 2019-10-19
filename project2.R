@@ -65,12 +65,16 @@ body <- dashboardBody(tabItems(
                                                                     width = "200%",
                                                                     height = 500)))),
   tabItem("table",
-          fluidPage(box(title = h3("The Data"), DT::dataTableOutput("table")))
+          fluidPage(downloadButton("downloadData", "Download Arrests Data"),
+                    box(title = h3("The Data"), DT::dataTableOutput("table")))
           ),
   tabItem("charts",
           fluidPage(
-            fluidRow(plotlyOutput("balloon")),
-            fluidRow(plotlyOutput("graph"))
+            fluidRow(box(title = h3("Graphs of Arrests"))),
+            fluidRow(plotlyOutput("graph")),
+            br(),
+            br(),
+            fluidRow(plotlyOutput("balloon"))
           ))
 
 ))
@@ -155,50 +159,55 @@ server <- function(input,output){
       clearShapes() %>%
       addPolygons(data = merge_things2, color = '#7d2218', fillColor = ~pal(counts), 
                  fillOpacity = 1, weight = 2, group = "NTA") %>%
+      
+      # Creating individual arrest markers ----------------------------
       addMarkers(lng = data_sub$longitude, lat = data_sub$latitude,
                  group = "arrests", clusterOptions = markerClusterOptions()) %>%
       clearControls() %>%
       addLegend(pal = pal, values = merge_things2$counts,
               opacity = 1.0, title = 'Arrest Totals',
               position = "bottomleft") %>%
+      
+      # Adding that sweet layer control -------------------------------------
       addLayersControl(overlayGroups = c("NTA", "arrests"),
                        options = layersControlOptions(collapsed = FALSE)) %>%
       hideGroup("arrests")
   })
-  
+  # Creating a balloon plot of perpetrator race and age group ----------------------
    output$balloon <- renderPlotly({
      
-    
-      # ggplotly(ggplot(data_sub(), aes(x = age_group, y = perp_race)) +
-      #          geom_point(stat = "sum") +
-      # theme(panel.background=element_blank(),
-      #       panel.border =element_rect(color = "blue",
-      #                                  fill=NA, size=2)) +
-      # ggtitle("Matching Perpetrator Race and Age Group") +
-      # xlab("Age Groups") +
-      # ylab("Perpetrator Race")
-      # )
+
      set <- plyr::count(data_sub(), c("perp_race", "age_group"))
+
      plot_ly(x = set$age_group, y = set$perp_race,
              type = 'scatter',
                mode = 'markers',
-             size = set$freq)
+             size = set$freq,
+             color = '#fd7f00') %>%
+       layout(title = "Arrests by Age Group and Perpetrator Race")
    })
    
+  # A graph showing number of arrests by date ---------------------------------
      output$graph <- renderPlotly({
        ofns <- data_sub()
        df <- dplyr::count(ofns, arrest_date)
        plot_ly(x = df$arrest_date, y = df$n,
                type = 'scatter',
-               mode = 'lines') 
+               mode = 'lines') %>%
+         layout(title = "Count of Arrests by Date")
                          
      })
-
+  
+  # The download handler -----------------------------------------------------------
+     output$downloadData <- downloadHandler(
+       filename = "Arrests_Data.csv", 
+       content = function(file) {
+         write.csv(ofns, file)
+       }, contentType = "txt/csv") 
+}
 
      
-  
 
-}   
 
 # Running the application
 shinyApp(ui, server)
