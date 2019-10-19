@@ -178,10 +178,11 @@ server <- function(input,output){
       # xlab("Age Groups") +
       # ylab("Perpetrator Race")
       # )
-     
-     plot_ly(
-               x = data_sub()$age_group, y = data_sub()$perp_race, type = 'scatter',
-               mode = 'markers')
+     set <- plyr::count(data_sub(), c("perp_race", "age_group"))
+     plot_ly(x = set$age_group, y = set$perp_race,
+             type = 'scatter',
+               mode = 'markers',
+             size = set$freq)
    })
    
      output$graph <- renderPlotly({
